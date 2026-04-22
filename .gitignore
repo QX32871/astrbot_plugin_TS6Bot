@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# CLAUDE
+CLAUDE.md
+.claude
+PLAN.md
+
 # Distribution / packaging
 .Python
 build/
