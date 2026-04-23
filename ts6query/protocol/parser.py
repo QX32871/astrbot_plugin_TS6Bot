@@ -15,13 +15,17 @@ class ResponseParser:
 
     ERROR_PATTERN = re.compile(r"^error id=(\d+)\s+msg=([^\r\n]*)$")
 
+    # 转义序列的正则表达式，匹配 TeamSpeak 的转义序列
+    UNESCAPE_PATTERN = re.compile(r'\\[\\/spnrtvf]')
+
     @staticmethod
     def unescape(value: str) -> str:
         """反转义字符串，将 TeamSpeak 转义序列转换回原始字符。"""
-        result = value
-        for escaped, char in UNESCAPE_MAP.items():
-            result = result.replace(escaped, char)
-        return result
+        def replace_escape(match):
+            escaped = match.group(0)
+            return UNESCAPE_MAP.get(escaped, escaped)
+
+        return ResponseParser.UNESCAPE_PATTERN.sub(replace_escape, value)
 
     @staticmethod
     def parse_value(value: str) -> Any:
@@ -31,6 +35,12 @@ class ResponseParser:
 
         unescaped = ResponseParser.unescape(value)
 
+        # 布尔值检查必须在整数转换之前
+        if unescaped == "0":
+            return False
+        elif unescaped == "1":
+            return True
+
         try:
             if "." in unescaped:
                 return float(unescaped)
@@ -38,10 +48,6 @@ class ResponseParser:
         except ValueError:
             pass
 
-        if unescaped == "0":
-            return False
-        elif unescaped == "1":
-            return True
         return unescaped
 
     @staticmethod
