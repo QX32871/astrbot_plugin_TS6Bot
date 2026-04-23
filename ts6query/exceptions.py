@@ -6,8 +6,10 @@ ts6query 异常定义
 
 from typing import Optional, Any
 
-#ts6query 基础异常类
+
 class TS6QueryError(Exception):
+    """ts6query 基础异常类"""
+
     def __init__(self, message: str, details: Optional[dict] = None):
         super().__init__(message)
         self.message = message
@@ -18,14 +20,16 @@ class TS6QueryError(Exception):
             return f"{self.message} - {self.details}"
         return self.message
 
-#连接相关异常
+
 class ConnectionError(TS6QueryError):
+    """连接相关异常"""
+
     def __init__(
-        self,
-        message: str,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        details: Optional[dict] = None
+            self,
+            message: str,
+            host: Optional[str] = None,
+            port: Optional[int] = None,
+            details: Optional[dict] = None
     ):
         super().__init__(message, details)
         self.host = host
@@ -37,28 +41,32 @@ class ConnectionError(TS6QueryError):
             return f"{base} (连接到 {self.host}:{self.port})"
         return base
 
-#认证失败异常
+
 class AuthenticationError(TS6QueryError):
+    """认证失败异常"""
+
     def __init__(
-        self,
-        message: str = "认证失败",
-        username: Optional[str] = None,
-        error_id: Optional[int] = None,
-        details: Optional[dict] = None
+            self,
+            message: str = "认证失败",
+            username: Optional[str] = None,
+            error_id: Optional[int] = None,
+            details: Optional[dict] = None
     ):
         super().__init__(message, details)
         self.username = username
         self.error_id = error_id
 
-#命令执行异常
+
 class CommandError(TS6QueryError):
+    """命令执行异常"""
+
     def __init__(
-        self,
-        message: str,
-        command: Optional[str] = None,
-        error_id: Optional[int] = None,
-        error_msg: Optional[str] = None,
-        details: Optional[dict] = None
+            self,
+            message: str,
+            command: Optional[str] = None,
+            error_id: Optional[int] = None,
+            error_msg: Optional[str] = None,
+            details: Optional[dict] = None
     ):
         super().__init__(message, details)
         self.command = command
@@ -76,13 +84,14 @@ class CommandError(TS6QueryError):
         return base
 
 
-#响应解析异常
 class ParseError(TS6QueryError):
+    """响应解析异常"""
+
     def __init__(
-        self,
-        message: str,
-        raw_data: Optional[str] = None,
-        details: Optional[dict] = None
+            self,
+            message: str,
+            raw_data: Optional[str] = None,
+            details: Optional[dict] = None
     ):
         super().__init__(message, details)
         self.raw_data = raw_data
@@ -94,13 +103,15 @@ class ParseError(TS6QueryError):
             base = f"{base} (原始数据: {truncated})"
         return base
 
-#超时异常
+
 class TimeoutError(TS6QueryError):
+    """解析值为 Python 类型，尝试将字符串值转换为适当的 Python 类型。"""
+
     def __init__(
-        self,
-        message: str = "操作超时",
-        timeout_seconds: Optional[float] = None,
-        details: Optional[dict] = None
+            self,
+            message: str = "操作超时",
+            timeout_seconds: Optional[float] = None,
+            details: Optional[dict] = None
     ):
         super().__init__(message, details)
         self.timeout_seconds = timeout_seconds
@@ -111,7 +122,9 @@ class TimeoutError(TS6QueryError):
             base = f"{base} ({self.timeout_seconds}秒)"
         return base
 
-#未连接异常
+
 class NotConnectedError(TS6QueryError):
+    """未连接异常"""
+
     def __init__(self, message: str = "未连接到服务器"):
         super().__init__(message)
