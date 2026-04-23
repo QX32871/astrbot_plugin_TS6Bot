@@ -5,7 +5,7 @@ TeamSpeak 6 ServerQuery 客户端。
 """
 
 from typing import Optional, Dict, Any, List
-from .connection import TCPConnection, SSHConnection, ConnectionBase, TCPConnectionPool, ConnectionTimeout
+from .connection import TCPConnection, SSHConnection, ConnectionBase
 from .protocol import ConnectionType, QueryResponse, CommandEncoder, ResponseParser
 from .exceptions import (
     TS6QueryError,
@@ -34,20 +34,15 @@ class TS6QueryClient:
             print(info)
     """
 
-    def __init__(self, timeout: float = 10.0, use_pool: bool = False, max_pool_size: int = 10):
+    def __init__(self, timeout: float = 10.0):
         """
         初始化客户端
 
         Args:
             timeout: 默认超时时间（秒）
-            use_pool: 是否使用连接池
-            max_pool_size: 连接池最大连接数
         """
         self._connection: Optional[ConnectionBase] = None
         self._timeout = timeout
-        self._use_pool = use_pool
-        self._max_pool_size = max_pool_size
-        self._pool: Optional[TCPConnectionPool] = None
         self._connected = False
         self._authenticated = False
         self._current_server_id: Optional[int] = None
@@ -77,8 +72,6 @@ class TS6QueryClient:
         ssh_username: Optional[str] = None,
         ssh_password: Optional[str] = None,
         ssh_key_filename: Optional[str] = None,
-        connection_timeout: Optional[float] = None,
-        read_timeout: Optional[float] = None,
     ) -> None:
         """
         连接到 TeamSpeak 服务器并认证
@@ -92,8 +85,6 @@ class TS6QueryClient:
             ssh_username: SSH 用户名（仅 SSH 连接）
             ssh_password: SSH 密码（仅 SSH 连接）
             ssh_key_filename: SSH 私钥文件路径（仅 SSH 连接）
-            connection_timeout: 连接超时（aiohttp 风格，可选）
-            read_timeout: 读取超时（aiohttp 风格，可选）
 
         Raises:
             ConnectionError: 连接失败
@@ -106,13 +97,7 @@ class TS6QueryClient:
         # 创建连接
         if connection_type == ConnectionType.TCP:
             actual_port = port or TCPConnection.DEFAULT_PORT
-            self._connection = TCPConnection(
-                host,
-                actual_port,
-                self._timeout,
-                connection_timeout=connection_timeout,
-                read_timeout=read_timeout,
-            )
+            self._connection = TCPConnection(host, actual_port, self._timeout)
         else:
             actual_port = port or SSHConnection.DEFAULT_PORT
             self._connection = SSHConnection(

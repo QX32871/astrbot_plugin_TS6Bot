@@ -1,27 +1,10 @@
 """
 连接抽象基类
-
-使用 aiohttp 风格的超时控制和连接管理。
 """
 
 from abc import ABC, abstractmethod
 from typing import Optional
-from dataclasses import dataclass
 import asyncio
-
-
-@dataclass
-class ConnectionTimeout:
-    """连接超时配置（aiohttp 风格）"""
-    total: Optional[float] = None
-    connect: Optional[float] = None
-    sock_read: Optional[float] = None
-    sock_connect: Optional[float] = None
-
-    @classmethod
-    def from_float(cls, timeout: float) -> "ConnectionTimeout":
-        """从单一超时值创建配置"""
-        return cls(total=timeout, connect=timeout, sock_read=timeout)
 
 
 class ConnectionBase(ABC):
@@ -45,37 +28,12 @@ class ConnectionBase(ABC):
         """
         self.host = host
         self.port = port
-        self._timeout = timeout
+        self.timeout = timeout
         self.encoding = encoding
         self._connected = False
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
         self._lock = asyncio.Lock()
-
-        # aiohttp 风格的超时配置
-        self._timeout_config = ConnectionTimeout.from_float(timeout)
-
-    @property
-    def timeout(self) -> float:
-        """获取默认超时时间"""
-        return self._timeout
-
-    @timeout.setter
-    def timeout(self, value: float) -> None:
-        """设置默认超时时间"""
-        self._timeout = value
-        self._timeout_config = ConnectionTimeout.from_float(value)
-
-    @property
-    def timeout_config(self) -> ConnectionTimeout:
-        """获取超时配置"""
-        return self._timeout_config
-
-    @timeout_config.setter
-    def timeout_config(self, value: ConnectionTimeout) -> None:
-        """设置超时配置"""
-        self._timeout_config = value
-        self._timeout = value.total or 10.0
 
     @property
     def is_connected(self) -> bool:
@@ -142,16 +100,15 @@ class ConnectionBase(ABC):
                 "未连接到服务器", host=self.host, port=self.port
             )
 
-        timeout_val = self._timeout_config.sock_read or self._timeout
         try:
             data = await asyncio.wait_for(
-                self._reader.readline(), timeout=timeout_val
+                self._reader.readline(), timeout=self.timeout
             )
             return data.decode(self.encoding).strip()
         except asyncio.TimeoutError:
             raise TimeoutError(
                 "接收数据超时",
-                timeout_seconds=timeout_val,
+                timeout_seconds=self.timeout,
                 details={"host": self.host, "port": self.port},
             )
         except Exception as e:
