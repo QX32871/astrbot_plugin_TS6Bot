@@ -4,14 +4,6 @@ TS6 ServerQuery AstrBot 插件
 提供 TeamSpeak 6 服务器信息查询和用户管理功能。
 """
 
-import sys
-from pathlib import Path
-
-# 将插件目录添加到模块搜索路径，确保能找到 ts6query 模块
-_plugin_dir = Path(__file__).parent
-if str(_plugin_dir) not in sys.path:
-    sys.path.insert(0, str(_plugin_dir))
-
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
