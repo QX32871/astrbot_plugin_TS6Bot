@@ -22,15 +22,15 @@ ESCAPE_MAP = {
 UNESCAPE_MAP = {v: k for k, v in ESCAPE_MAP.items()}
 
 
+# 连接类型
 class ConnectionType(Enum):
-    """连接类型"""
     TCP = "tcp"
     SSH = "ssh"
 
 
+# ServerQuery 响应
 @dataclass
 class QueryResponse:
-    """ServerQuery 响应"""
     success: bool
     error_id: int
     error_msg: str
@@ -48,9 +48,9 @@ class QueryResponse:
         return len(self.data) > 0
 
 
+# 命令执行结果
 @dataclass
 class CommandResult:
-    """命令执行结果"""
     response: QueryResponse
     command: str = ""
     params: Dict[str, Any] = field(default_factory=dict)
