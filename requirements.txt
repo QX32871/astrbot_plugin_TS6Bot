@@ -1,5 +1,6 @@
 astrbot
 paramiko  # SSH 连接支持（可选）
+aiohttp>=3.9.0  # 异步网络库
 
 # 测试依赖
 pytest>=7.0.0
