@@ -1,1 +1,1 @@
-# astrbot-plugin-helloworld
+# astrbot_plugin_ts6_info_fetcher
