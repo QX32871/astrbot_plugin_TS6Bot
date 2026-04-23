@@ -1,0 +1,32 @@
+{
+  "server_host": {
+    "type": "string",
+    "description": "服务器 IP 或域名",
+    "hint": "例如 ts.example.com 或 127.0.0.1"
+  },
+  "server_port": {
+    "type": "int",
+    "description": "TS3 语音服务器端口",
+    "hint": "通常是 9987"
+  },
+  "serverQuery_port": {
+    "type": "int",
+    "description": "ServerQuery 端口",
+    "hint": "通常是 10011，一般保持默认即可",
+    "default": 10011
+  },
+  "serverQuery_username": {
+    "type": "string",
+    "description": "ServerQuery 账号"
+  },
+  "serverQuery_password": {
+    "type": "string",
+    "description": "ServerQuery 密码",
+    "obvious_hint": true
+  },
+  "serverQuery_connection_type": {
+    "type": "string",
+    "description": "ServerQuery 连接方式，默认是tcp",
+    "default": "tcp"
+  }
+}
