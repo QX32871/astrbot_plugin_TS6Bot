@@ -1,244 +1,194 @@
 """
-TS ServerQuery AstrBot 插件
+TS6 ServerQuery AstrBot 插件
 
-提供 TeamSpeak 服务器信息查询和用户管理功能。
+基于 TS6 HTTP API 提供 TeamSpeak 服务器信息查询功能。
 """
 
-import sys
-from pathlib import Path
-
-from astrbot.core import AstrBotConfig
-
-# 将插件目录添加到模块搜索路径，确保能找到 ts6query 模块
-_plugin_dir = Path(__file__).parent
-if str(_plugin_dir) not in sys.path:
-    sys.path.insert(0, str(_plugin_dir))
+from ts6_client import TS6HttpClient
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star
 from astrbot.api import logger
-
-from ts6query import TS6QueryClient, ConnectionType
-from ts6query.exceptions import TS6QueryError
+from astrbot.core import AstrBotConfig
 
 
-@register("astrbot_plugin_ts6_info_fetcher", "QX32871", "TS6服务器信息查询插件", "1.0.0")
 class TS6BotPlugin(Star):
-    """TeamSpeak 服务器信息查询插件"""
+    """TeamSpeak 6 服务器信息查询插件"""
 
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
-        self._client: TS6QueryClient | None = None
+        self._client: TS6HttpClient | None = None
         self._config = config
-
-    def _get_config(self) -> dict:
-        """获取插件配置"""
-        config = self._config or {}
-        return {
-            "server_host": config.get("ts_host", "localhost"),
-            "serverQuery_port": config.get("ts_port", 10011),
-            "serverQuery_username": config.get("ts_username", ""),
-            "serverQuery_password": config.get("ts_password", ""),
-            "connection_type": config.get("ts_connection_type", "tcp"),
-            "server_id": config.get("ts_server_id", 1),
-        }
 
     async def initialize(self):
         """插件初始化"""
         logger.info("TS6Bot 插件初始化中...")
-        self._client = TS6QueryClient()
+        server_url = self._config.get("server_url", "")
+        server_port = self._config.get("server_port", "10080")
+        api_key = self._config.get("api_key", "")
+        if not server_url or not api_key:
+            logger.warning("未配置 server_url 或 api_key，跳过客户端初始化")
+            return
+        base_url = f"http://{server_url}:{server_port}"
+        self._client = TS6HttpClient(base_url, api_key)
+        await self._client.start()
+        logger.info("TS6 HTTP 客户端已就绪")
 
     async def terminate(self):
         """插件销毁"""
         logger.info("TS6Bot 插件销毁中...")
-        if self._client and self._client.is_connected:
-            await self._client.disconnect()
-        self._client = None
+        if self._client:
+            await self._client.close()
+            self._client = None
 
-    async def _ensure_connected(self) -> bool:
-        """确保已连接到服务器"""
-        if not self._client:
-            return False
-        if self._client.is_connected:
-            return True
-        try:
-            conn_type = (
-                ConnectionType.SSH
-                if self._config.get("ts_connection_type") == "ssh"
-                else ConnectionType.TCP
-            )
-            await self._client.connect(
-                host=self._config["ts_host"],
-                port=self._config["ts_port"],
-                username=self._config["ts_username"],
-                password=self._config["ts_password"],
-                connection_type=conn_type,
-            )
-            # 选择虚拟服务器
-            if self._config.get("ts_server_id"):
-                await self._client.use_server(self._config["ts_server_id"])
-            return True
-        except TS6QueryError as e:
-            logger.error(f"连接服务器失败: {e}")
-            return False
+    async def _ensure_client(self) -> TS6HttpClient | None:
+        """确保客户端已初始化，返回客户端或 None"""
+        if self._client:
+            return self._client
+        logger.warning("客户端未初始化，尝试使用当前配置初始化")
+        server_url = self._config.get("server_url", "")
+        server_port = self._config.get("server_port", "10080")
+        api_key = self._config.get("api_key", "")
+        if not server_url or not api_key:
+            return None
+        base_url = f"http://{server_url}:{server_port}"
+        self._client = TS6HttpClient(base_url, api_key)
+        await self._client.start()
+        return self._client
 
     @filter.command("ts6_status", alias={"状态", "server"})
     async def ts6_status(self, event: AstrMessageEvent):
         """查询 TS 服务器状态"""
-        if not await self._ensure_connected():
-            yield event.plain_result("❌ 无法连接到服务器")
+        client = await self._ensure_client()
+        if not client:
+            yield event.plain_result("未配置 API 连接信息")
             return
-
         try:
-            info = await self._client.server_info()
+            info = await client.server_info()
             status_msg = (
                 f"📊 **服务器状态**\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"🖥️ 服务器名称: {info.get('virtualserver_name', 'N/A')}\n"
-                f"👥 在线用户: {info.get('virtualserver_clientsonline', 0)}/{info.get('virtualserver_maxclients', 0)}\n"
-                f"⏱️ 运行时间: {self._format_uptime(info.get('virtualserver_uptime', 0))}\n"
+                f"📌 版本: {info.get('virtualserver_version', 'N/A')}\n"
+                f"👥 在线用户: {info.get('virtualserver_clientsonline', 0)}/"
+                f"{info.get('virtualserver_maxclients', 0)}\n"
+                f"📢 频道数: {info.get('virtualserver_channelsonline', 0)}\n"
+                f"⏱️ 运行时间: {self._format_uptime(int(info.get('virtualserver_uptime', 0)))}\n"
             )
             yield event.plain_result(status_msg)
-        except TS6QueryError as e:
+        except RuntimeError as e:
             logger.error(f"查询服务器状态失败: {e}")
-            yield event.plain_result(f"❌ 查询失败: {e}")
+            yield event.plain_result(f"查询失败: {e}")
 
     @filter.command("ts6_clients", alias={"人呢"})
     async def ts6_clients(self, event: AstrMessageEvent):
         """查询 TS 在线用户列表"""
-        if not await self._ensure_connected():
-            yield event.plain_result("❌ 无法连接到服务器")
+        client = await self._ensure_client()
+        if not client:
+            yield event.plain_result("未配置 API 连接信息")
             return
         try:
-            clients = await self._client.client_list(uid=True)
+            clients = await client.client_list()
             if not clients:
-                yield event.plain_result("📭 当前没有在线用户")
+                yield event.plain_result("当前没有在线用户")
                 return
-            # 过滤掉 ServerQuery 客户端
-            voice_clients = [c for c in clients if c.get("client_type", 0) == 0]
+            voice_clients = [c for c in clients if c.get("client_type", "0") == "0"]
             if not voice_clients:
-                yield event.plain_result("📭 当前没有普通用户在线")
+                yield event.plain_result("当前没有普通用户在线")
                 return
             lines = ["👥 **在线用户列表**", "━━━━━━━━━━━━━━━━━━"]
-            for i, client in enumerate(voice_clients[:20], 1):  # 限制显示 20 个
-                nickname = client.get("client_nickname", "未知")
-                away = "💤" if client.get("client_away", False) else ""
-                muted = "🔇" if client.get("client_output_muted", False) else ""
-                lines.append(f"{i}. {nickname} {away}{muted}")
+            for i, c in enumerate(voice_clients[:20], 1):
+                nickname = c.get("client_nickname", "未知")
+                lines.append(f"{i}. {nickname}")
             if len(voice_clients) > 20:
                 lines.append(f"... 还有 {len(voice_clients) - 20} 位用户")
             yield event.plain_result("\n".join(lines))
-        except TS6QueryError as e:
+        except RuntimeError as e:
             logger.error(f"查询用户列表失败: {e}")
-            yield event.plain_result(f"❌ 查询失败: {e}")
+            yield event.plain_result(f"查询失败: {e}")
 
-    @filter.command("ts_kick")
-    async def ts6_kick(self, event: AstrMessageEvent):
-        """踢出 TS 用户 (用法: /ts_kick <用户名> [原因])"""
-        args = event.message_str.split(maxsplit=2)
-        if len(args) < 2:
-            yield event.plain_result("用法: /ts_kick <用户名> [原因]")
-            return
-        nickname = args[1]
-        reason = args[2] if len(args) > 2 else ""
-        if not await self._ensure_connected():
-            yield event.plain_result("❌ 无法连接到服务器")
+    @filter.command("ts6_channels")
+    async def ts6_channels(self, event: AstrMessageEvent):
+        """查询 TS 频道列表"""
+        client = await self._ensure_client()
+        if not client:
+            yield event.plain_result("未配置 API 连接信息")
             return
         try:
-            # 查找用户
-            clients = await self._client.client_list()
-            target = None
-            for client in clients:
-                if client.get("client_nickname", "").lower() == nickname.lower():
-                    target = client
-                    break
-            if not target:
-                yield event.plain_result(f"❌ 未找到用户: {nickname}")
+            channels = await client.channel_list()
+            if not channels:
+                yield event.plain_result("当前没有频道")
                 return
-            # 踢出用户
-            await self._client.client_kick(
-                target["clid"],
-                reason_id=5,  # 踢出服务器
-                reason_msg=reason or "被管理员踢出"
-            )
-            yield event.plain_result(f"✅ 已踢出用户: {nickname}")
-        except TS6QueryError as e:
-            logger.error(f"踢出用户失败: {e}")
-            yield event.plain_result(f"❌ 踢出失败: {e}")
-
-    @filter.command("ts_move")
-    async def ts6_move(self, event: AstrMessageEvent):
-        """移动用户到指定频道 (用法: /ts_move <用户名> <频道ID>)"""
-        args = event.message_str.split(maxsplit=2)
-        if len(args) < 3:
-            yield event.plain_result("用法: /ts_move <用户名> <频道ID>")
-            return
-        nickname = args[1]
-        try:
-            channel_id = int(args[2])
-        except ValueError:
-            yield event.plain_result("❌ 频道 ID 必须是数字")
-            return
-        if not await self._ensure_connected():
-            yield event.plain_result("❌ 无法连接到服务器")
-            return
-        try:
-            # 查找用户
-            clients = await self._client.client_list()
-            target = None
-            for client in clients:
-                if client.get("client_nickname", "").lower() == nickname.lower():
-                    target = client
-                    break
-            if not target:
-                yield event.plain_result(f"❌ 未找到用户: {nickname}")
-                return
-            # 移动用户
-            await self._client.client_move(target["clid"], channel_id)
-            yield event.plain_result(f"✅ 已将 {nickname} 移动到频道 {channel_id}")
-        except TS6QueryError as e:
-            logger.error(f"移动用户失败: {e}")
-            yield event.plain_result(f"❌ 移动失败: {e}")
-
-    @filter.command("ts6_banlist")
-    async def ts6_banlist(self, event: AstrMessageEvent):
-        """查询 TS 封禁列表"""
-        if not await self._ensure_connected():
-            yield event.plain_result("❌ 无法连接到服务器")
-            return
-        try:
-            bans = await self._client.ban_list()
-            if not bans:
-                yield event.plain_result("📭 当前没有封禁记录")
-                return
-            lines = ["🚫 **封禁列表**", "━━━━━━━━━━━━━━━━━━"]
-            for ban in bans[:10]:  # 限制显示 10 条
-                ban_id = ban.get("banid", 0)
-                name = ban.get("name", "*")
-                ip = ban.get("ip", "*")
-                reason = ban.get("reason", "无原因")
-                duration = ban.get("duration", 0)
-                duration_str = "永久" if duration == 0 else f"{duration}秒"
-                lines.append(f"#{ban_id}: {name or ip} - {reason} ({duration_str})")
-            if len(bans) > 10:
-                lines.append(f"... 还有 {len(bans) - 10} 条封禁记录")
+            lines = ["📢 **频道列表**", "━━━━━━━━━━━━━━━━━━"]
+            for ch in channels[:20]:
+                name = ch.get("channel_name", "未知")
+                cid = ch.get("cid", "?")
+                total = ch.get("total_clients", "0")
+                lines.append(f"#{cid} {name} ({total} 人)")
+            if len(channels) > 20:
+                lines.append(f"... 还有 {len(channels) - 20} 个频道")
             yield event.plain_result("\n".join(lines))
-        except TS6QueryError as e:
-            logger.error(f"查询封禁列表失败: {e}")
-            yield event.plain_result(f"❌ 查询失败: {e}")
+        except RuntimeError as e:
+            logger.error(f"查询频道列表失败: {e}")
+            yield event.plain_result(f"查询失败: {e}")
+
+    @filter.command("ts6_version")
+    async def ts6_version(self, event: AstrMessageEvent):
+        """查询 TS 服务器版本"""
+        client = await self._ensure_client()
+        if not client:
+            yield event.plain_result("未配置 API 连接信息")
+            return
+        try:
+            ver = await client.version()
+            version_msg = (
+                f"🔖 **服务器版本**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"版本: {ver.get('version', 'N/A')}\n"
+                f"构建: {ver.get('build', 'N/A')}\n"
+                f"平台: {ver.get('platform', 'N/A')}\n"
+            )
+            yield event.plain_result(version_msg)
+        except RuntimeError as e:
+            logger.error(f"查询版本失败: {e}")
+            yield event.plain_result(f"查询失败: {e}")
+
+    @filter.command("ts6_whoami")
+    async def ts6_whoami(self, event: AstrMessageEvent):
+        """查询当前 API Key 对应的会话信息"""
+        client = await self._ensure_client()
+        if not client:
+            yield event.plain_result("未配置 API 连接信息")
+            return
+        try:
+            info = await client.whoami()
+            msg = (
+                f"🔑 **查询会话信息**\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"查询昵称: {info.get('client_nickname', 'N/A')}\n"
+                f"登录名: {info.get('client_login_name', 'N/A')}\n"
+                f"数据库 ID: {info.get('client_database_id', 'N/A')}\n"
+                f"所在频道: {info.get('client_channel_id', 'N/A')}\n"
+                f"虚拟服务器: {info.get('virtualserver_id', 'N/A')}\n"
+                f"服务器状态: {info.get('virtualserver_status', 'N/A')}\n"
+            )
+            yield event.plain_result(msg)
+        except RuntimeError as e:
+            logger.error(f"查询会话信息失败: {e}")
+            yield event.plain_result(f"查询失败: {e}")
 
     @filter.command("ts_help", alias={"help"})
     async def ts_help(self, event: AstrMessageEvent):
         """显示插件帮助信息"""
         help_msg = (
-            "📖 **插件命令帮助**\n"
+            "📖 **TS6 插件命令帮助**\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            "/ts_status - 查询服务器状态\n"
-            "/ts_clients - 查询在线用户\n"
-            "/ts_kick <用户名> [原因] - 踢出用户\n"
-            "/ts_move <用户名> <频道ID> - 移动用户\n"
-            "/ts_banlist - 查询封禁列表\n"
-            "/ts_help - 显示此帮助"
+            "/ts6_status — 查询服务器状态\n"
+            "/ts6_clients — 查询在线用户\n"
+            "/ts6_channels — 查询频道列表\n"
+            "/ts6_version — 查询服务器版本\n"
+            "/ts6_whoami — 查询会话信息\n"
+            "/ts_help — 显示此帮助"
         )
         yield event.plain_result(help_msg)
 
@@ -255,6 +205,6 @@ class TS6BotPlugin(Star):
             parts.append(f"{hours}小时")
         if minutes > 0:
             parts.append(f"{minutes}分钟")
-        if seconds > 0 or not parts:
+        if not parts:
             parts.append(f"{seconds}秒")
         return "".join(parts)

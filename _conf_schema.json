@@ -1,32 +1,30 @@
 {
-  "server_host": {
+  "server_url": {
     "type": "string",
-    "description": "服务器 IP 或域名",
-    "hint": "例如 ts.example.com 或 127.0.0.1"
+    "description": "TS6 服务器 URL/IP",
+    "hint": "例如 192.168.31.34"
   },
   "server_port": {
-    "type": "int",
-    "description": "TS3 语音服务器端口",
-    "hint": "通常是 9987"
-  },
-  "serverQuery_port": {
-    "type": "int",
-    "description": "ServerQuery 端口",
-    "hint": "通常是 10011，一般保持默认即可",
-    "default": 10011
-  },
-  "serverQuery_username": {
     "type": "string",
-    "description": "ServerQuery 账号"
+    "description": "TS6 服务器端口",
+    "hint": "TS6 HTTP API 端口，默认为 10080",
+    "default": "10080"
   },
-  "serverQuery_password": {
+  "serverquery_username": {
+    "type": "string",
+    "description": "ServerQuery 用户名",
+    "hint": "TeamSpeak ServerQuery 登录用户名"
+  },
+  "serverquery_password": {
     "type": "string",
     "description": "ServerQuery 密码",
+    "hint": "TeamSpeak ServerQuery 登录密码",
     "obvious_hint": true
   },
-  "serverQuery_connection_type": {
+  "api_key": {
     "type": "string",
-    "description": "ServerQuery 连接方式，默认是tcp",
-    "default": "tcp"
+    "description": "TS6 API Key",
+    "hint": "用于认证 TS6 HTTP API 的密钥",
+    "obvious_hint": true
   }
 }

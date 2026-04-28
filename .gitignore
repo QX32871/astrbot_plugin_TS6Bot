@@ -11,6 +11,8 @@ CLAUDE.md
 .claude
 PLAN.md
 openspec
+doc
+tests
 
 # Distribution / packaging
 .Python
@@ -57,6 +59,7 @@ coverage.xml
 .pytest_cache/
 cover/
 unitTest
+networkTest
 
 # Translations
 *.mo
